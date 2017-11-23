@@ -230,15 +230,18 @@ class MarvinBotWeatherPlugin(Plugin):
 
         try:
             url = "http://www.ssd.noaa.gov/goes/east/{}/avn-l.jpg".format(data[1])
-            m = requests.get(url, stream=True)
+            m = requests.get(url, stream=True, timeout=60)
             if m.status_code == 200:
                 m.raw.decode_content = True
                 self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=m.raw)
             else:
                 msg = "❌ Download error"
+        except requests.exceptions.Timeout as err:
+            log.error("Weather map error: {}".format(err))
+            msg = "❌ Connection timeout to NOAA"
         except Exception as err:
             log.error("Weather map error: {}".format(err))
             msg = "❌ Error"
 
         if msg:
-            self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
+            self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
