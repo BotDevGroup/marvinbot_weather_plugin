@@ -84,7 +84,7 @@ class MarvinBotWeatherPlugin(Plugin):
             return r.json()
 
     def make_list(self, data):
-        places = data['query']['results']['place']
+        places = data['query']['results']['place'] if data['query']['count'] > 1 else [data['query']['results']['place']]
         countries = []
         for p in places:
             c = []
