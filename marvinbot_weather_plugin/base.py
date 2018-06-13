@@ -17,7 +17,6 @@ import ctypes
 import time
 import xml.etree.ElementTree as ET
 
-
 log = logging.getLogger(__name__)
 
 last = []
@@ -30,11 +29,11 @@ class MarvinBotWeatherPlugin(Plugin):
 
     def get_default_config(self):
         maps = [ 
-            ['Atlantic Wide','taw/02/1800x1080.jpg'],
-            ['Carribean','car/02/1000x1000.jpg'],
-            ['Gulf of Mexico','gm/02/1000x1000.jpg'],
-            ['US Atlantic Coast','eus/02/1000x1000.jpg'],
-            ['Puerto Rico','pr/02/1200x1200.jpg']
+            ['Atlantic Wide','taw/07/1800x1080.jpg'],
+            ['Carribean','car/07/1000x1000.jpg'],
+            ['Gulf of Mexico','gm/07/1000x1000.jpg'],
+            ['US Atlantic Coast','eus/07/1000x1000.jpg'],
+            ['Puerto Rico','pr/07/1200x1200.jpg']
         ]
         code = {
             "0":"🌪","1":"⛈","2":"🌀","3":"⛈","4":"🌩","5":"🌨","6":"🌧","7":"🌧","8":"🌧","9":"🌧",
@@ -61,9 +60,9 @@ class MarvinBotWeatherPlugin(Plugin):
         self.bot = adapter.bot
         self.add_handler(CommandHandler('weather', self.on_weather_command, command_description='Find current and forecast weather.')
             .add_argument('--week', help='Find forecast weather by Yahoo! Weather.', action='store_true')
-            .add_argument('--map', help='Get IR AVN Map by NOAA.', action='store_true')
         )
-        self.add_handler(CommandHandler('ciclones', self.on_hurricane_command, command_description='Cyclones Information by NOAA. (default: Atlantic)')
+        self.add_handler(CommandHandler('satellite', self.on_satellite_command, command_description='Get Satellite View Map from NOAA.'))
+        self.add_handler(CommandHandler('cyclones', self.on_hurricane_command, command_description='Cyclones Information from NOAA. (default: Atlantic)')
             .add_argument('--ep', help='Eastern North Pacific', action='store_true')
             .add_argument('--at', help='Atlantic', action='store_true')
         )
@@ -101,9 +100,8 @@ class MarvinBotWeatherPlugin(Plugin):
     def http_nhc(self, ep=False):
         nhc = []
 
-        url = 'https://www.nhc.noaa.gov/index-ep.xml' if ep else 'https://www.nhc.noaa.gov/index-at.xml'
-
-        r = requests.get(url);
+        url = "https://www.nhc.noaa.gov/index-{}.xml".format("ep" if ep else "at")
+        r = requests.get(url, timeout=120);
         
         # strip all namespaces
         tree = ET.iterparse(StringIO(r.text))
@@ -138,8 +136,8 @@ class MarvinBotWeatherPlugin(Plugin):
     def http_ssd(self):
         ssd = []
 
-        url = 'http://www.ssd.noaa.gov'
-        r = requests.get('{}/PS/TROP/floaters.html'.format(url))
+        url = 'http://www.ssd.noaa.gov/PS/TROP/floaters.html'
+        r = requests.get(url, timeout=120)
         
         html_soup = BeautifulSoup(r.text, 'html.parser')
         
@@ -224,59 +222,58 @@ class MarvinBotWeatherPlugin(Plugin):
         msg += "🌡 *Pressure*: {}\n".format(hurracane['pressure'] )
         msg += "🌬 *Wind*: {}\n".format(hurracane['wind'])
         msg += "📝 *Headline*: {}\n".format(hurracane['headline'])
-        msg += "*Date*: {}\n".format(hurracane['datetime'])
+        msg += "⏳ *Date*: {}\n".format(hurracane['datetime'])
 
         return msg
+
+    def on_satellite_command(self, update, *args, **kwargs):
+        message = get_message(update)
+
+        options = []
+
+        for m in self.config.get('maps'):
+            callback = "map:{}".format(m[1])
+            options.append([InlineKeyboardButton(text=m[0], callback_data=callback)])
+
+        reply_markup = InlineKeyboardMarkup(options)
+        self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🛰 Maps:", reply_markup=reply_markup)
 
     def on_weather_command(self, update, *args, **kwargs):
         message = get_message(update)
         msg = ""
         reply_markup = ""
-        
-        map = kwargs.get('map', False)
+
         help = kwargs.get('help', False)
         week = kwargs.get('week', False)
-        hurricane = kwargs.get('hurricane', False)
 
-        if map:
-            options = []
+        try:
+            cmd_args = re.sub('—\w*', '', message.text).split(" ")
+            if len(cmd_args) > 1:
+                city = " ".join(cmd_args[1:])
+                data = self.http(city=city)
 
-            for m in self.config.get('maps'):
-                callback = "map:{}".format(m[1])
-                options.append([InlineKeyboardButton(text=m[0], callback_data=callback)])
+                options = []
 
-            reply_markup = InlineKeyboardMarkup(options)
-            self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🛰 Map:", reply_markup=reply_markup)
-        else:
-            try:
-                cmd_args = re.sub('—\w*', '', message.text).split(" ")
-                if len(cmd_args) > 1:
-                    city = " ".join(cmd_args[1:])
-                    data = self.http(city=city)
+                countries = self.make_list(data)
 
-                    options = []
+                for c in countries:
+                    d = "weather:{}:{}".format(c[0], week)
+                    options.append([InlineKeyboardButton(text=c[1], callback_data=d)])
 
-                    countries = self.make_list(data)
-
-                    for c in countries:
-                        d = "weather:{}:{}".format(c[0], week)
-                        options.append([InlineKeyboardButton(text=c[1], callback_data=d)])
-
-                    if len(options) > 0:
-                        reply_markup = InlineKeyboardMarkup(options)
-                    else:
-                        msg = "❌ City not found"
-                        reply_markup = ""
+                if len(options) > 0:
+                    reply_markup = InlineKeyboardMarkup(options)
                 else:
-                    msg = "‼️ Use: /weather <city>"
-            except Exception as err:
-                log.error("Weather error: {}".format(err))
-                msg = "❌ Error"
-
-            if reply_markup:
-                self.adapter.bot.sendMessage(chat_id=message.chat_id, text="☁️ Select:", reply_markup=reply_markup)
+                    msg = "❌ City not found"
+                    reply_markup = ""
             else:
-                self.adapter.bot.sendMessage(chat_id=message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
+                msg = "‼️ Use: /weather <city>"
+        except Exception as err:
+            log.error("Weather error: {}".format(err))
+
+        if reply_markup:
+            self.adapter.bot.sendMessage(chat_id=message.chat_id, text="☁️ Select:", reply_markup=reply_markup)
+        else:
+            self.adapter.bot.sendMessage(chat_id=message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
 
     def on_hurricane_command(self, update, *args, **kwargs):
         global nhc
@@ -296,14 +293,19 @@ class MarvinBotWeatherPlugin(Plugin):
                 callback = "nhc:{}".format(hurricane['name'])
                 options.append([InlineKeyboardButton(text=hurricane['name'], callback_data=callback)])
 
+            url = "https://www.nhc.noaa.gov/xgtwo/two_{}_0d0.png".format("pac" if ep else "atl")
+            map = requests.get(url, stream=True, timeout=120)
+            if map.status_code == 200:
+                map.raw.decode_content = True
+                self.adapter.bot.sendPhoto(chat_id=message.chat_id, photo=map.raw)
+
             if len(options) > 0:
                 reply_markup = InlineKeyboardMarkup(options)
             else:
-                msg = "😁 There are no tropical cyclones at this time."
+                msg = "🔵 There are no tropical cyclones at this time."
                 reply_markup = ""
         except Exception as err:
             log.error("Weather error: {}".format(err))
-            msg = "❌ Error"
 
         if reply_markup:
             self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🌀 Select:", reply_markup=reply_markup)
@@ -333,7 +335,6 @@ class MarvinBotWeatherPlugin(Plugin):
                 msg += m['items'][0]
         except Exception as err:
             log.error("Weather button error: {}".format(err))
-            msg = "❌ Error"
             
         self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
 
@@ -357,10 +358,8 @@ class MarvinBotWeatherPlugin(Plugin):
                 msg = "❌ Download error"
         except requests.exceptions.Timeout as err:
             log.error("Weather map error: {}".format(err))
-            msg = "❌ Connection timeout to NOAA"
         except Exception as err:
             log.error("Weather map error: {}".format(err))
-            # msg = "❌ Error"
 
         if msg:
             self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
@@ -387,19 +386,19 @@ class MarvinBotWeatherPlugin(Plugin):
             hurricane = next((hurricane for hurricane in nhc if hurricane['name'] == data[1]), None)
             if hurricane:
                 if old_message and old_message['date'] + self.config.get("timer") > time.time():
-                    msg_replay = "#Hurricane last info!"
+                    msg_replay = "#Cyclone last info!"
                     self.adapter.bot.sendMessage(chat_id=query.message.chat_id, reply_to_message_id=old_message['message_id'], text=msg_replay, parse_mode='Markdown', disable_web_page_preview = True)
                 else:
                     msg_nhc = self.make_msg_nhc(hurricane)
 
                     if 'img-5day' in hurricane:
-                        fiveday = requests.get(hurricane['img-5day'], stream=True, timeout=60)
+                        fiveday = requests.get(hurricane['img-5day'], stream=True, timeout=120)
                         if fiveday.status_code == 200:
                             fiveday.raw.decode_content = True
 
                     ssd = next((ssd for ssd in self.http_ssd() if ssd['name'] == hurricane['name']), None)
                     if ssd:
-                        avn = requests.get(ssd['img'], stream=True, timeout=60)
+                        avn = requests.get(ssd['img'], stream=True, timeout=120)
                         if avn.status_code == 200:
                             avn.raw.decode_content = True
 
