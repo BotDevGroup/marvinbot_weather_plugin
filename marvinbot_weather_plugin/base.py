@@ -28,13 +28,25 @@ class MarvinBotWeatherPlugin(Plugin):
         self.bot = None
 
     def get_default_config(self):
-        maps = [ 
-            ['Atlantic Wide','taw/07/1800x1080.jpg'],
-            ['Carribean','car/07/1000x1000.jpg'],
-            ['Gulf of Mexico','gm/07/1000x1000.jpg'],
-            ['US Atlantic Coast','eus/07/1000x1000.jpg'],
-            ['Puerto Rico','pr/07/1200x1200.jpg']
-        ]
+        maps = { 
+            'noaa' : {
+                'url' : 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/',
+                'items' : [
+                    ['Atlantic Wide','taw/07/1800x1080.jpg'],
+                    ['Carribean','car/07/1000x1000.jpg'],
+                    ['Gulf of Mexico','gm/07/1000x1000.jpg'],
+                    ['US Atlantic Coast','eus/07/1000x1000.jpg'],
+                    ['Puerto Rico','pr/07/1200x1200.jpg']
+                ]
+            },
+            'ca' : {
+                'url' : 'https://weather.gc.ca/data/satellite/',
+                'items' : [
+                    ['Eastern Canada','goes_ecan_1070_100.jpg'],
+                    ['Western Canada','goes_wcan_1070_100.jpg']
+                ]
+            }
+        }
         code = {
             "0":"🌪","1":"⛈","2":"🌀","3":"⛈","4":"🌩","5":"🌨","6":"🌧","7":"🌧","8":"🌧","9":"🌧",
             "10":"🌧","11":"🌧","12":"🌧","13":"🌨","14":"🌨","15":"🌨","16":"🌨","17":"🌧","18":"🌧","19":"👽",
@@ -231,9 +243,11 @@ class MarvinBotWeatherPlugin(Plugin):
 
         options = []
 
-        for m in self.config.get('maps'):
-            callback = "map:{}".format(m[1])
-            options.append([InlineKeyboardButton(text=m[0], callback_data=callback)])
+        for key in self.config.get('maps'):
+            m = self.config.get('maps').get(key)
+            for items in m.get('items'):
+                callback = "map:{}:{}".format(items[1], key)
+                options.append([InlineKeyboardButton(text=items[0], callback_data=callback)])
 
         reply_markup = InlineKeyboardMarkup(options)
         self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🛰 Maps:", reply_markup=reply_markup)
@@ -349,7 +363,7 @@ class MarvinBotWeatherPlugin(Plugin):
             query.message.edit_reply_markup(reply_markup=None)
 
         try:
-            url = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/{}".format(data[1])
+            url = "{}{}".format(self.config.get('maps').get(data[2]).get('url'), data[1])
             m = requests.get(url, stream=True, timeout=120)
             if m.status_code == 200:
                 m.raw.decode_content = True
