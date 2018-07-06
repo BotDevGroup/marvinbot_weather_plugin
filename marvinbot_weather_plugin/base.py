@@ -32,18 +32,18 @@ class MarvinBotWeatherPlugin(Plugin):
             'noaa' : {
                 'url' : 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/',
                 'items' : [
-                    ['Atlantic Wide','taw/07/1800x1080.jpg'],
-                    ['Carribean','car/07/1000x1000.jpg'],
-                    ['Gulf of Mexico','gm/07/1000x1000.jpg'],
-                    ['US Atlantic Coast','eus/07/1000x1000.jpg'],
-                    ['Puerto Rico','pr/07/1200x1200.jpg']
+                    [['Atlantic Wide - IR','taw/07/1800x1080.jpg'],['Atlantic Wide - Visible','taw/GEOCOLOR/1800x1080.jpg']],
+                    [['Carribean - IR','car/07/1000x1000.jpg'],['Carribean - Visible','car/GEOCOLOR/1000x1000.jpg']],
+                    [['Gulf of Mexico - IR','gm/07/1000x1000.jpg'],['Gulf of Mexico - Visible','gm/GEOCOLOR/1000x1000.jpg']],
+                    [['US Atlantic Coast - IR','eus/07/1000x1000.jpg'],['US Atlantic Coast - Visible','eus/GEOCOLOR/1000x1000.jpg']],
+                    [['Puerto Rico - IR','pr/07/1200x1200.jpg'],['Puerto Rico - Visible','pr/GEOCOLOR/1200x1200.jpg']]
                 ]
             },
             'ca' : {
                 'url' : 'https://weather.gc.ca/data/satellite/',
                 'items' : [
-                    ['Eastern Canada','goes_ecan_1070_100.jpg'],
-                    ['Western Canada','goes_wcan_1070_100.jpg']
+                    [['Eastern Canada - IR','goes_ecan_1070_100.jpg'],['Eastern Canada - Visible','goes_ecan_visible_100.jpg']],
+                    [['Western Canada - IR','goes_wcan_1070_100.jpg'],['Western Canada - Visible','goes_wcan_visible_100.jpg']]
                 ]
             }
         }
@@ -78,7 +78,6 @@ class MarvinBotWeatherPlugin(Plugin):
             .add_argument('--ep', help='Eastern North Pacific', action='store_true')
             .add_argument('--at', help='Atlantic', action='store_true')
         )
-
         self.add_handler(CallbackQueryHandler('weather:', self.on_button), priority=1)
         self.add_handler(CallbackQueryHandler('map:', self.on_map), priority=1)
         self.add_handler(CallbackQueryHandler('nhc:', self.on_nhc), priority=1)
@@ -246,8 +245,7 @@ class MarvinBotWeatherPlugin(Plugin):
         for key in self.config.get('maps'):
             m = self.config.get('maps').get(key)
             for items in m.get('items'):
-                callback = "map:{}:{}".format(items[1], key)
-                options.append([InlineKeyboardButton(text=items[0], callback_data=callback)])
+                options.append([InlineKeyboardButton(text=item[0], callback_data="map:{}:{}".format(item[1], key)) for item in items])
 
         reply_markup = InlineKeyboardMarkup(options)
         self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🛰 Maps:", reply_markup=reply_markup)
