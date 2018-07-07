@@ -61,7 +61,8 @@ class MarvinBotWeatherPlugin(Plugin):
             'base_url': 'https://query.yahooapis.com/v1/public/yql',
             'maps': maps,
             'code': code,
-            'timer': 15*60
+            'timer': 15*60,
+            'timeout': 120
         }
 
     def configure(self, config):
@@ -112,7 +113,7 @@ class MarvinBotWeatherPlugin(Plugin):
         nhc = []
 
         url = "https://www.nhc.noaa.gov/index-{}.xml".format("ep" if ep else "at")
-        r = requests.get(url, timeout=120);
+        r = requests.get(url, timeout=self.config.get('timeout'));
         
         # strip all namespaces
         tree = ET.iterparse(StringIO(r.text))
@@ -132,6 +133,7 @@ class MarvinBotWeatherPlugin(Plugin):
             hurracane['wind'] = c.find('wind').text
             hurracane['datetime'] = c.find('datetime').text
             hurracane['headline'] = c.find('headline').text.strip()
+            hurracane['center'] = c.find('center').text
         
             for child in root.iter('item'):
                 if('Graphics' in child.find('title').text and hurracane['name'] in child.find('title').text):
@@ -144,11 +146,41 @@ class MarvinBotWeatherPlugin(Plugin):
 
         return nhc
 
+    def http_nesdis(self, center):
+        def nesdisLatLon(url):
+            return [float(x) for x in re.split('.*lat=(\d+)\w\&lon=(\d+)\w', url) if x != '']
+        
+        def nhcLatLon(center):
+            return [float(x) for x in re.split('(\d+\.\d+)\,\s\-(\d+\.\d+)', center) if x != '']
+        
+        def compareLatLon(nhc, nesdis, rang=5):
+            return nesdis[0] - rang <= nhc[0] <= nesdis[0] + rang and nesdis[1] - rang <= nhc[1] <= nesdis[1] + rang
+
+        url = 'https://www.star.nesdis.noaa.gov/GOES/'
+
+        nhclatlon = nhcLatLon(center)
+
+        r = requests.get("{}{}".format(url,'MESO_index.php'), timeout=self.config.get('timeout'))
+        
+        html_soup = BeautifulSoup(r.text, 'html.parser')
+        
+        for ul in html_soup.find('div', id='tab1').find_all('ul', class_='mesoItems'):
+            for li in ul.find_all('li'):
+                if compareLatLon(nhclatlon, nesdisLatLon(li.a['href'])):
+                    r2 = requests.get("{}{}".format(url, li.a['href']), timeout=self.config.get('timeout'))
+                    html_soup2 = BeautifulSoup(r2.text, 'html.parser')
+        
+                    for tb in html_soup2.find_all('div', class_='TNBox'):
+                        if 'Band 13' in tb.a['title']:
+                            return tb.a['href']
+
+        return ""
+
     def http_ssd(self):
         ssd = []
 
         url = 'http://www.ssd.noaa.gov/PS/TROP/floaters.html'
-        r = requests.get(url, timeout=120)
+        r = requests.get(url, timeout=self.config.get('timeout'))
         
         html_soup = BeautifulSoup(r.text, 'html.parser')
         
@@ -228,9 +260,9 @@ class MarvinBotWeatherPlugin(Plugin):
 
     def make_msg_nhc(self, hurracane):
         msg =  "🌀 *Name*: {}\n".format(hurracane['name'])
-        msg += "🔺 *Type*: {}\n".format(hurracane['type'] )
-        msg += "➡ *Movement*: {}\n".format(hurracane['movement'] )
-        msg += "🌡 *Pressure*: {}\n".format(hurracane['pressure'] )
+        msg += "🔺 *Type*: {}\n".format(hurracane['type'])
+        msg += "➡ *Movement*: {}\n".format(hurracane['movement'])
+        msg += "🌡 *Pressure*: {}\n".format(hurracane['pressure'])
         msg += "🌬 *Wind*: {}\n".format(hurracane['wind'])
         msg += "📝 *Headline*: {}\n".format(hurracane['headline'])
         msg += "⏳ *Date*: {}\n".format(hurracane['datetime'])
@@ -306,7 +338,7 @@ class MarvinBotWeatherPlugin(Plugin):
                 options.append([InlineKeyboardButton(text=hurricane['name'], callback_data=callback)])
 
             url = "https://www.nhc.noaa.gov/xgtwo/two_{}_0d0.png".format("pac" if ep else "atl")
-            map = requests.get(url, stream=True, timeout=120)
+            map = requests.get(url, stream=True, timeout=self.config.get('timeout'))
             if map.status_code == 200:
                 map.raw.decode_content = True
                 self.adapter.bot.sendPhoto(chat_id=message.chat_id, photo=map.raw)
@@ -362,7 +394,7 @@ class MarvinBotWeatherPlugin(Plugin):
 
         try:
             url = "{}{}".format(self.config.get('maps').get(data[2]).get('url'), data[1])
-            m = requests.get(url, stream=True, timeout=120)
+            m = requests.get(url, stream=True, timeout=self.config.get('timeout'))
             if m.status_code == 200:
                 m.raw.decode_content = True
                 self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=m.raw)
@@ -393,6 +425,7 @@ class MarvinBotWeatherPlugin(Plugin):
 
         fiveday = ""
         avn = ""
+        nesdis = ""
 
         try:
             hurricane = next((hurricane for hurricane in nhc if hurricane['name'] == data[1]), None)
@@ -404,19 +437,27 @@ class MarvinBotWeatherPlugin(Plugin):
                     msg_nhc = self.make_msg_nhc(hurricane)
 
                     if 'img-5day' in hurricane:
-                        fiveday = requests.get(hurricane['img-5day'], stream=True, timeout=120)
+                        fiveday = requests.get(hurricane['img-5day'], stream=True, timeout=self.config.get('timeout'))
                         if fiveday.status_code == 200:
                             fiveday.raw.decode_content = True
 
+                    # TODO: remove - This NOAA site will no longer provide GOES-East imagery
                     ssd = next((ssd for ssd in self.http_ssd() if ssd['name'] == hurricane['name']), None)
                     if ssd:
-                        avn = requests.get(ssd['img'], stream=True, timeout=120)
+                        avn = requests.get(ssd['img'], stream=True, timeout=self.config.get('timeout'))
                         if avn.status_code == 200:
                             avn.raw.decode_content = True
+
+                    nesdisurl = self.http_nesdis(hurricane['center'])
+                    if nesdisurl:
+                        nesdis = requests.get(nesdisurl, stream=True, timeout=self.config.get('timeout'))
+                        if nesdis.status_code == 200:
+                            nesdis.raw.decode_content = True
 
                     last_message = self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg_nhc, parse_mode='Markdown')  
                     if fiveday: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=fiveday.raw)
                     if avn: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=avn.raw)
+                    if nesdis: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=nesdis.raw)
                     if old_message:
                         last.remove(old_message)
                     last.append({'date': time.time(), 'chat_id': query.message.chat_id, 'message_id': last_message.message_id, 'hurricane': data[1]})
