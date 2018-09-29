@@ -202,6 +202,22 @@ class MarvinBotWeatherPlugin(Plugin):
         
         return ssd
 
+    def http_stormcaribe(self, name):
+        url = 'https://stormcarib.com/'
+
+        r = requests.get(url, timeout=self.config.get('timeout'))
+        
+        html_soup = BeautifulSoup(r.text, 'html.parser')
+        
+        for tr in html_soup.find('table', bgcolor='#ffccff').find_all('tr'):
+            if name.lower() == tr.td.font.text.lower():
+                for a in tr.find_all('a', title='[Spaghetti plots + intensity]'):
+                    r2 = requests.get("{}{}".format(url, a['href']), timeout=self.config.get('timeout'))
+                    html_soup2 = BeautifulSoup(r2.text, 'html.parser')
+                    return html_soup2.find_all('img')[1]['src']
+
+        return ""
+
     def make_list(self, data):
         places = data['query']['results']['place'] if data['query']['count'] > 1 else [data['query']['results']['place']]
         countries = []
@@ -426,6 +442,7 @@ class MarvinBotWeatherPlugin(Plugin):
         fiveday = ""
         avn = ""
         nesdis = ""
+        stormcarib = ""
 
         try:
             hurricane = next((hurricane for hurricane in nhc if hurricane['name'] == data[1]), None)
@@ -454,10 +471,17 @@ class MarvinBotWeatherPlugin(Plugin):
                         if nesdis.status_code == 200:
                             nesdis.raw.decode_content = True
 
+                    stormcariburl = self.http_stormcaribe(hurricane['name'])
+                    if stormcariburl:
+                        stormcarib = requests.get(stormcariburl, stream=True, timeout=self.config.get('timeout'))
+                        if stormcarib.status_code == 200:
+                            stormcarib.raw.decode_content = True
+
                     last_message = self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg_nhc, parse_mode='Markdown')  
                     if fiveday: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=fiveday.raw)
                     if avn: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=avn.raw)
                     if nesdis: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=nesdis.raw)
+                    if stormcarib: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=stormcarib.raw)
                     if old_message:
                         last.remove(old_message)
                     last.append({'date': time.time(), 'chat_id': query.message.chat_id, 'message_id': last_message.message_id, 'hurricane': data[1]})
