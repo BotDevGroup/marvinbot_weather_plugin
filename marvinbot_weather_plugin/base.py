@@ -209,12 +209,24 @@ class MarvinBotWeatherPlugin(Plugin):
         
         html_soup = BeautifulSoup(r.text, 'html.parser')
         
-        for tr in html_soup.find('table', bgcolor='#ffccff').find_all('tr'):
-            if name.lower() == tr.td.font.text.lower():
+        for tr in html_soup.find_all('tr'):
+            if "tools" in tr.td.text and name.lower() in tr.td.text.lower():
                 for a in tr.find_all('a', title='[Spaghetti plots + intensity]'):
                     r2 = requests.get("{}{}".format(url, a['href']), timeout=self.config.get('timeout'))
                     html_soup2 = BeautifulSoup(r2.text, 'html.parser')
                     return html_soup2.find_all('img')[1]['src']
+
+        return ""
+
+    def http_image(self, url):
+        try: 
+            if url:
+                image = requests.get(url, stream=True, timeout=self.config.get('timeout'))
+                if image.status_code == 200:
+                    image.raw.decode_content = True
+                    return image
+        except Exception as err:
+            log.error("Weather http_image url: {} error: {}".format(url, err))
 
         return ""
 
@@ -354,9 +366,8 @@ class MarvinBotWeatherPlugin(Plugin):
                 options.append([InlineKeyboardButton(text=hurricane['name'], callback_data=callback)])
 
             url = "https://www.nhc.noaa.gov/xgtwo/two_{}_0d0.png".format("pac" if ep else "atl")
-            map = requests.get(url, stream=True, timeout=self.config.get('timeout'))
-            if map.status_code == 200:
-                map.raw.decode_content = True
+            map = self.http_image(url)
+            if map:
                 self.adapter.bot.sendPhoto(chat_id=message.chat_id, photo=map.raw)
 
             if len(options) > 0:
@@ -410,9 +421,8 @@ class MarvinBotWeatherPlugin(Plugin):
 
         try:
             url = "{}{}".format(self.config.get('maps').get(data[2]).get('url'), data[1])
-            m = requests.get(url, stream=True, timeout=self.config.get('timeout'))
-            if m.status_code == 200:
-                m.raw.decode_content = True
+            m = self.http_image(url)
+            if m:
                 self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=m.raw)
             else:
                 msg = "❌ Download error"
@@ -454,28 +464,15 @@ class MarvinBotWeatherPlugin(Plugin):
                     msg_nhc = self.make_msg_nhc(hurricane)
 
                     if 'img-5day' in hurricane:
-                        fiveday = requests.get(hurricane['img-5day'], stream=True, timeout=self.config.get('timeout'))
-                        if fiveday.status_code == 200:
-                            fiveday.raw.decode_content = True
+                        fiveday = self.http_image(hurricane['img-5day'])
 
                     # TODO: remove - This NOAA site will no longer provide GOES-East imagery
                     ssd = next((ssd for ssd in self.http_ssd() if ssd['name'] == hurricane['name']), None)
                     if ssd:
-                        avn = requests.get(ssd['img'], stream=True, timeout=self.config.get('timeout'))
-                        if avn.status_code == 200:
-                            avn.raw.decode_content = True
+                        avn = self.http_image(ssd['img'])
 
-                    nesdisurl = self.http_nesdis(hurricane['center'])
-                    if nesdisurl:
-                        nesdis = requests.get(nesdisurl, stream=True, timeout=self.config.get('timeout'))
-                        if nesdis.status_code == 200:
-                            nesdis.raw.decode_content = True
-
-                    stormcariburl = self.http_stormcaribe(hurricane['name'])
-                    if stormcariburl:
-                        stormcarib = requests.get(stormcariburl, stream=True, timeout=self.config.get('timeout'))
-                        if stormcarib.status_code == 200:
-                            stormcarib.raw.decode_content = True
+                    nesdis = self.http_image(self.http_nesdis(hurricane['center']))
+                    stormcarib = self.http_image(self.http_stormcaribe(hurricane['name']))
 
                     last_message = self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg_nhc, parse_mode='Markdown')  
                     if fiveday: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=fiveday.raw)
