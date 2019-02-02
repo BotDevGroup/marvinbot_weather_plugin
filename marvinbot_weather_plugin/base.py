@@ -22,6 +22,8 @@ import xml.etree.ElementTree as ET
 import traceback
 import pytz
 
+from datetime import datetime
+
 log = logging.getLogger(__name__)
 
 last = []
