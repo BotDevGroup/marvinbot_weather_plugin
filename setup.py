@@ -2,7 +2,8 @@ from distutils.core import setup
 from setuptools import find_packages
 
 REQUIREMENTS = [
-    'marvinbot'
+    'marvinbot',
+    'python-Levenshtein'
 ]
 
 setup(name='marvinbot-weather-plugin',

@@ -1,6 +1,7 @@
 import json
 import os
 import inspect
+import Levenshtein
 
 class City():
     def __init__(self):
@@ -13,4 +14,4 @@ class City():
     		seen = set()
     		return [{'id' : city['id'], 'name': city['name'], 'country' : city['country']} 
     			for city in cities 
-    				if city['name'].upper() == name.upper() and city['country'] not in seen and not seen.add(city['country'])]
+    				if Levenshtein.distance(city['name'].upper(), name.upper()) < 2 and city['country'] not in seen and not seen.add(city['country'])]
