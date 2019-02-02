@@ -2,6 +2,7 @@
 
 import marvinbot_weather_plugin.city as city
 import marvinbot_weather_plugin.flag as flag
+import marvinbot_weather_plugin.timezone as timezone
 
 from marvinbot.utils import localized_date, get_message
 from marvinbot.handlers import CommandHandler, CallbackQueryHandler
@@ -266,7 +267,7 @@ class MarvinBotWeatherPlugin(Plugin):
         if data['cod'] != 200:
             return data['message']
 
-        tz = pytz.timezone(self.config.get('timezone', 'Etc/UTC'))
+        tz = pytz.timezone(timezone.Timezone().getTimezone(data['sys']['country']))
 
         msg =  "*{} {}*\n\n".format(data['name'], flag.Flag().getFlag(data['sys']['country']))
         
