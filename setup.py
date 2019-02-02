@@ -7,8 +7,8 @@ REQUIREMENTS = [
 ]
 
 setup(name='marvinbot-weather-plugin',
-      version='0.1',
-      description='Weather from Yahoo! Weather',
+      version='0.3',
+      description='Weather from OpenWeatherMap and NOAA',
       author='Conrado Reyes',
       author_email='coreyes@gmail.com',
       url='',

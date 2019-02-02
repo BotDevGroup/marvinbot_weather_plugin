@@ -267,9 +267,9 @@ class MarvinBotWeatherPlugin(Plugin):
         if data['cod'] != 200:
             return data['message']
 
-        tz = pytz.timezone(timezone.Timezone().getTimezone(data['sys']['country']))
+        tz = pytz.timezone(timezone.getTimezone(data['sys']['country']))
 
-        msg =  "*{} {}*\n\n".format(data['name'], flag.Flag().getFlag(data['sys']['country']))
+        msg =  "*{} {}*\n\n".format(data['name'], flag.getFlag(data['sys']['country']))
         
         for temp in data['weather']:
             msg += "{} {}\n".format(self.config.get('code').get(temp['icon']), temp['description'])
@@ -319,10 +319,10 @@ class MarvinBotWeatherPlugin(Plugin):
             if len(cmd_args) > 1:
                 name = " ".join(cmd_args[1:])
 
-                cities = city.City().getCity(name)
+                cities = city.getCity(name)
                 options = []
                 
-                options = chunks([InlineKeyboardButton(text='{} {}'.format(c['name'], flag.Flag().getFlag(c['country'])), callback_data="weather:{}".format(c['id'])) for c in cities], 3)
+                options = chunks([InlineKeyboardButton(text='{} {}'.format(c['name'], flag.getFlag(c['country'])), callback_data="weather:{}".format(c['id'])) for c in cities], 3)
 
                 if len(options) > 0:
                     options.append([InlineKeyboardButton(text="Cancel", callback_data="weather:__cancel__")])
