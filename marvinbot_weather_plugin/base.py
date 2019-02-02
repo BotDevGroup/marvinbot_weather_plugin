@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+import marvinbot_weather_plugin.city as city
+import marvinbot_weather_plugin.flag as flag
+
 from marvinbot.utils import localized_date, get_message
 from marvinbot.handlers import CommandHandler, CallbackQueryHandler
 from marvinbot.plugins import Plugin
@@ -16,6 +19,10 @@ import requests
 import ctypes
 import time
 import xml.etree.ElementTree as ET
+import traceback
+import pytz
+
+from datetime import datetime
 
 log = logging.getLogger(__name__)
 
@@ -48,17 +55,20 @@ class MarvinBotWeatherPlugin(Plugin):
             }
         }
         code = {
-            "0":"🌪","1":"⛈","2":"🌀","3":"⛈","4":"🌩","5":"🌨","6":"🌧","7":"🌧","8":"🌧","9":"🌧",
-            "10":"🌧","11":"🌧","12":"🌧","13":"🌨","14":"🌨","15":"🌨","16":"🌨","17":"🌧","18":"🌧","19":"👽",
-            "20":"👽","21":"👽","22":"👽","23":"🌬","24":"🌬","25":"❄","26":"☁","27":"☁","28":"🌤","29":"☁",
-            "30":"🌤","31":"🌖","32":"🌝","33":"🌖","34":"🌝","35":"🌧","36":"🔥","37":"⛈","38":"⛈","39":"⛈",
-            "40":"🌧","41":"🌨","42":"🌨","43":"🌨","44":"☁","45":"⛈","46":"🌨","47":"⛈",
-            "3200":"👽"
+            '01d' : '☀',  '01n' : '🌕',        
+            '02d' : '⛅', '02n' : '☁',         
+            '03d' : '☁',  '03n' : '☁',        
+            '04d' : '☁',  '04n' : '☁',        
+            '09d' : '🌧', '09n' : '🌧',        
+            '10d' : '🌧', '10n' : '🌧',        
+            '11d' : '🌩', '11n' : '🌩',        
+            '13d' : '🌨', '13n' : '🌨',        
+            '50d' : '🌫', '50n' : '🌫'        
         }
         return {
             'short_name': self.name,
             'enabled': True,
-            'base_url': 'https://query.yahooapis.com/v1/public/yql',
+            'base_url': 'https://api.openweathermap.org/data/2.5/weather',
             'maps': maps,
             'code': code,
             'timer': 15*60,
@@ -71,9 +81,7 @@ class MarvinBotWeatherPlugin(Plugin):
 
     def setup_handlers(self, adapter):
         self.bot = adapter.bot
-        self.add_handler(CommandHandler('weather', self.on_weather_command, command_description='Find current and forecast weather.')
-            .add_argument('--week', help='Find forecast weather by Yahoo! Weather.', action='store_true')
-        )
+        self.add_handler(CommandHandler('weather', self.on_weather_command, command_description='Find current weather from OpenWeatherMap.'))
         self.add_handler(CommandHandler('satellite', self.on_satellite_command, command_description='Get Satellite View Map from NOAA.'))
         self.add_handler(CommandHandler('cyclones', self.on_hurricane_command, command_description='Cyclones Information from NOAA. (default: Atlantic)')
             .add_argument('--ep', help='Eastern North Pacific', action='store_true')
@@ -86,24 +94,23 @@ class MarvinBotWeatherPlugin(Plugin):
     def setup_schedules(self, adapter):
         pass
 
-    def http(self, city="", woeid=""):
+    def http(self, city="", cityid=""):
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36",
             "Connection": "close"   
         }
         
         with requests.Session() as s:
-            yql_query = ""
             payload = {}
 
-            if woeid:
-                yql_query = "select * from weather.forecast where woeid = '{}' and u='c'"
-                payload["q"] = yql_query.format(woeid)
-                payload["format"] = "json"
+            if cityid:
+                payload["id"] = cityid
             else:
-                yql_query = "select woeid,country,admin1 from geo.places where text = '{}' and placetype='country'"
-                payload["q"] = yql_query.format(city)
-                payload["format"] = "json"
+                payload["q"] = city
+
+            payload["APPID"] = self.config.get('APPID')
+            payload["units"] = self.config.get('units', 'metric')
+            payload["lang"] = self.config.get('lang', 'es')
 
             r = s.get(self.config.get('base_url'), params=payload)
 
@@ -250,41 +257,23 @@ class MarvinBotWeatherPlugin(Plugin):
         return countries
 
     def make_msg(self, data):
-        channel = data['query']['results']['channel'] 
+        if data['cod'] != 200:
+            return data['message']
 
-        msg =  "*City*: {}\n".format(channel['location']['city'])
-        msg += "*Country*: {}\n".format(channel['location']['country'])
-        msg += "*Wind Speed*: {} km/h\n".format(channel['wind']['speed'])
-        msg += "*Humidity*: {} %\n".format(channel['atmosphere']['humidity'])
-        msg += "*Sunrise*: {}\n".format(time.strftime("%I:%M %p", time.strptime(channel['astronomy']['sunrise'], "%I:%M %p")))
-        msg += "*Sunset*: {}\n".format(time.strftime("%I:%M %p", time.strptime(channel['astronomy']['sunset'], "%I:%M %p")))
+        tz = pytz.timezone(self.config.get('timezone', 'Etc/UTC'))
 
-        items = []
+        msg =  "*{} {}*\n\n".format(data['name'], flag.Flag().getFlag(data['sys']['country']))
         
-        i = "\n*Current*\n"
-        i += "{} {}\n".format(
-            self.config.get('code').get(channel['item']['condition']['code']),
-            channel['item']['condition']['text']
-        )
-        i += "*Temp*: {} C".format(channel['item']['condition']['temp'])
+        for temp in data['weather']:
+            msg += "{} {}\n".format(self.config.get('code').get(temp['icon']), temp['description'])
 
-        items.append(i)
+        msg += "\n"
+        msg += "*Temp*: {} C\n".format(data['main']['temp'])
 
-        for forecast in channel['item']['forecast']:
-            i = "\n\n*{}*\n".format(forecast['day'])
-            i += "{} {}\n".format(
-                self.config.get('code').get(forecast['code']),
-                forecast['text']
-            )
-            i += "*Temp* Max: {} C, Min: {} C".format(forecast['high'], forecast['low'])
+        msg += "*Sunrise*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunrise']), tz).strftime("%I:%M %p"))
+        msg += "*Sunset*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
 
-            items.append(i)
-
-        r = {}
-        r['msg'] = msg
-        r['items'] = items
-
-        return r
+        return msg
 
     def make_msg_nhc(self, hurracane):
         msg =  "🌀 *Name*: {}\n".format(hurracane['name'])
@@ -311,28 +300,25 @@ class MarvinBotWeatherPlugin(Plugin):
         self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🛰 Maps:", reply_markup=reply_markup)
 
     def on_weather_command(self, update, *args, **kwargs):
+        def chunks(l, n):
+            return list(l[i:i+n] for i in range(0, len(l), n))
+
         message = get_message(update)
         msg = ""
         reply_markup = ""
 
-        help = kwargs.get('help', False)
-        week = kwargs.get('week', False)
-
         try:
             cmd_args = re.sub('—\w*', '', message.text).split(" ")
             if len(cmd_args) > 1:
-                city = " ".join(cmd_args[1:])
-                data = self.http(city=city)
+                name = " ".join(cmd_args[1:])
 
+                cities = city.City().getCity(name)
                 options = []
-
-                countries = self.make_list(data)
-
-                for c in countries:
-                    d = "weather:{}:{}".format(c[0], week)
-                    options.append([InlineKeyboardButton(text=c[1], callback_data=d)])
+                
+                options = chunks([InlineKeyboardButton(text='{} {}'.format(c['name'], flag.Flag().getFlag(c['country'])), callback_data="weather:{}".format(c['id'])) for c in cities], 3)
 
                 if len(options) > 0:
+                    options.append([InlineKeyboardButton(text="Cancel", callback_data="weather:__cancel__")])
                     reply_markup = InlineKeyboardMarkup(options)
                 else:
                     msg = "❌ City not found"
@@ -341,6 +327,7 @@ class MarvinBotWeatherPlugin(Plugin):
                 msg = "‼️ Use: /weather <city>"
         except Exception as err:
             log.error("Weather error: {}".format(err))
+            traceback.print_exc()
 
         if reply_markup:
             self.adapter.bot.sendMessage(chat_id=message.chat_id, text="☁️ Select:", reply_markup=reply_markup)
@@ -394,16 +381,9 @@ class MarvinBotWeatherPlugin(Plugin):
             query.message.edit_reply_markup(reply_markup=None)
 
         try:
-            r = self.http(woeid=data[1])
-            m = self.make_msg(r)
-
-            msg = m['msg']
-
-            if "True" == data[2]:
-                for i in m['items'][:5]:
-                    msg += i
-            else:
-                msg += m['items'][0]
+            if data[1] == "__cancel__":
+                return
+            msg = self.make_msg(self.http(cityid=data[1]))
         except Exception as err:
             log.error("Weather button error: {}".format(err))
             
