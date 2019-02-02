@@ -109,8 +109,8 @@ class MarvinBotWeatherPlugin(Plugin):
                 payload["q"] = city
 
             payload["APPID"] = self.config.get('APPID')
-            payload["units"] = self.config.get('units', 'metric')
-            payload["lang"] = self.config.get('lang', 'es')
+            payload["units"] = self.config.get('units', 'standard')
+            payload["lang"] = self.config.get('lang', 'us')
 
             r = s.get(self.config.get('base_url'), params=payload)
 
@@ -257,6 +257,12 @@ class MarvinBotWeatherPlugin(Plugin):
         return countries
 
     def make_msg(self, data):
+        temp_chart = {
+            'metric': '°C',
+            'imperial': '°F',
+            'standard': '°K'
+        }
+
         if data['cod'] != 200:
             return data['message']
 
@@ -268,7 +274,7 @@ class MarvinBotWeatherPlugin(Plugin):
             msg += "{} {}\n".format(self.config.get('code').get(temp['icon']), temp['description'])
 
         msg += "\n"
-        msg += "*Temp*: {} C\n".format(data['main']['temp'])
+        msg += "*Temp*: {} {}\n".format(data['main']['temp'], temp_chart.get(self.config.get('units'), "standard"))
 
         msg += "*Sunrise*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunrise']), tz).strftime("%I:%M %p"))
         msg += "*Sunset*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
@@ -446,7 +452,6 @@ class MarvinBotWeatherPlugin(Plugin):
                     if 'img-5day' in hurricane:
                         fiveday = self.http_image(hurricane['img-5day'])
 
-                    # TODO: remove - This NOAA site will no longer provide GOES-East imagery
                     ssd = next((ssd for ssd in self.http_ssd() if ssd['name'] == hurricane['name']), None)
                     if ssd:
                         avn = self.http_image(ssd['img'])
