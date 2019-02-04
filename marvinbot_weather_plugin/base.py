@@ -269,16 +269,16 @@ class MarvinBotWeatherPlugin(Plugin):
 
         tz = pytz.timezone(timezone.getTimezone(data['sys']['country']))
 
-        msg =  "*{} {}*\n\n".format(data['name'], flag.getFlag(data['sys']['country']))
+        msg =  "*{} {}*\n\n".format(flag.getFlag(data['sys']['country']), data['name'])
         
         for temp in data['weather']:
             msg += "{} {}\n".format(self.config.get('code').get(temp['icon']), temp['description'])
 
         msg += "\n"
         msg += "*Temp*: {} {}\n".format(data['main']['temp'], temp_chart.get(self.config.get('units'), "standard"))
-
         msg += "*Sunrise*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunrise']), tz).strftime("%I:%M %p"))
-        msg += "*Sunset*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
+        msg += "*Sunset*: {}\n\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
+        msg += "*Date*: {}".format(datetime.fromtimestamp(int(data['dt']), tz).strftime("%d %B %Y - %I:%M %p"))
 
         return msg
 
@@ -322,7 +322,7 @@ class MarvinBotWeatherPlugin(Plugin):
                 cities = city.getCity(name)
                 options = []
                 
-                options = chunks([InlineKeyboardButton(text='{} {}'.format(c['name'], flag.getFlag(c['country'])), callback_data="weather:{}".format(c['id'])) for c in cities], 3)
+                options = chunks([InlineKeyboardButton(text='{} {}'.format(flag.getFlag(c['country']), c['name']), callback_data="weather:{}".format(c['id'])) for c in cities], 3)
 
                 if len(options) > 0:
                     options.append([InlineKeyboardButton(text="Cancel", callback_data="weather:__cancel__")])
