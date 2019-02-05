@@ -238,25 +238,6 @@ class MarvinBotWeatherPlugin(Plugin):
 
         return ""
 
-    def make_list(self, data):
-        places = data['query']['results']['place'] if data['query']['count'] > 1 else [data['query']['results']['place']]
-        countries = []
-        for p in places:
-            c = []
-
-            if p['admin1'] is not None:
-                t = "{} - {}".format(p['country']['content'], p['admin1']['content'])
-            else:
-                t = "{}".format(p['country']['content'])
-
-            # plop!!! : )
-            if not any(t in x for x in countries):
-                c.append(p['woeid'])
-                c.append(t)
-                countries.append(c)
-
-        return countries
-
     def make_msg(self, data):
         temp_chart = {
             'metric': '°C',
