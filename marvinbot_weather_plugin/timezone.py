@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 def getTimezone(country):
 	timezone = {
 		'AF':'Asia/Kabul',
