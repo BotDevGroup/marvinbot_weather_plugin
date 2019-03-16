@@ -5,7 +5,7 @@ import os
 import Levenshtein
 
 def getCity(name):
-	with open('{}/city.list.json'.format(os.path.dirname(__file__))) as file:
+	with open('{}/city.list.json'.format(os.path.dirname(__file__)), encoding='utf-8') as file:
 		cities = json.load(file)
 
 		seen = set()
