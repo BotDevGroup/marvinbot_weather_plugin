@@ -20,7 +20,6 @@ import requests
 import ctypes
 import time
 import xml.etree.ElementTree as ET
-import traceback
 import pytz
 
 from datetime import datetime
@@ -234,7 +233,7 @@ class MarvinBotWeatherPlugin(Plugin):
                     image.raw.decode_content = True
                     return image
         except Exception as err:
-            log.error("Weather http_image url: {} error: {}".format(url, err))
+            log.exception("Weather http_image url: {}".format(url))
 
         return ""
 
@@ -314,12 +313,11 @@ class MarvinBotWeatherPlugin(Plugin):
             else:
                 msg = "‼️ Use: /weather <city>"
         except Exception as err:
-            log.error("Weather error: {}".format(err))
-            traceback.print_exc()
+            log.exception("on_weather_command")
 
         if reply_markup:
             self.adapter.bot.sendMessage(chat_id=message.chat_id, text="☁️ Select:", reply_markup=reply_markup)
-        else:
+        elif msg:
             self.adapter.bot.sendMessage(chat_id=message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
 
     def on_hurricane_command(self, update, *args, **kwargs):
@@ -351,11 +349,11 @@ class MarvinBotWeatherPlugin(Plugin):
                 msg = "🔵 There are no tropical cyclones at this time."
                 reply_markup = ""
         except Exception as err:
-            log.error("Weather error: {}".format(err))
+            log.exception("on_hurricane_command")
 
         if reply_markup:
             self.adapter.bot.sendMessage(chat_id=message.chat_id, text="🌀 Select:", reply_markup=reply_markup)
-        else:
+        elif msg:
             self.adapter.bot.sendMessage(chat_id=message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
 
     def on_button(self, update):
@@ -373,9 +371,10 @@ class MarvinBotWeatherPlugin(Plugin):
                 return
             msg = self.make_msg(self.http(cityid=data[1]))
         except Exception as err:
-            log.error("Weather button error: {}".format(err))
-            
-        self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
+            log.exception("on_button")
+        
+        if msg:
+            self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
 
     def on_map(self, update):
         query = update.callback_query
@@ -395,9 +394,9 @@ class MarvinBotWeatherPlugin(Plugin):
             else:
                 msg = "❌ Download error"
         except requests.exceptions.Timeout as err:
-            log.error("Weather map error: {}".format(err))
+            log.exception("on_map")
         except Exception as err:
-            log.error("Weather map error: {}".format(err))
+            log.exception("on_map")
 
         if msg:
             self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
@@ -453,5 +452,5 @@ class MarvinBotWeatherPlugin(Plugin):
                 msg = "❌ Not hurricane"
                 self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
         except Exception as err:
-            log.error("Weather nhc/ssd error: {}".format(err))
+            log.exception("on_nhc")
 
