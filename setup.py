@@ -3,7 +3,8 @@ from setuptools import find_packages
 
 REQUIREMENTS = [
     'marvinbot',
-    'python-Levenshtein'
+    'python-Levenshtein',
+    'timezonefinder'
 ]
 
 setup(name='marvinbot-weather-plugin',

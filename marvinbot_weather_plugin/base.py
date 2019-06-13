@@ -21,7 +21,8 @@ import ctypes
 import time
 import xml.etree.ElementTree as ET
 import pytz
-
+from tzwhere import tzwhere
+from timezonefinder import TimezoneFinder
 from datetime import datetime
 
 log = logging.getLogger(__name__)
@@ -247,7 +248,9 @@ class MarvinBotWeatherPlugin(Plugin):
         if data['cod'] != 200:
             return data['message']
 
-        tz = pytz.timezone(timezone.getTimezone(data['sys']['country']))
+        tf = TimezoneFinder()
+        tz_name = tf.timezone_at(lng=data['coord']['lon'], lat=data['coord']['lat'])
+        tz = pytz.timezone(tz_name)
 
         msg =  "*{} {}*\n\n".format(flag.getFlag(data['sys']['country']), data['name'])
 
@@ -257,9 +260,9 @@ class MarvinBotWeatherPlugin(Plugin):
         msg += "\n"
         msg += "*Temp*: {} {}\n".format(round(float(data['main']['temp'])), temp_chart.get(self.config.get('units'), "standard"))
         msg += "*Sunrise*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunrise']), tz).strftime("%I:%M %p"))
-        msg += "*Sunset*: {}\n\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
-        msg += "*Date*: {}".format(datetime.fromtimestamp(int(data['dt']), tz).strftime("%d %B %Y - %I:%M %p"))
-        msg += "\nTZ: {}\nCountry: {}".format(timezone.getTimezone(data['sys']['country']), data['sys']['country'])
+        msg += "*Sunset*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
+        msg += "*Date*: {}\n".format(datetime.fromtimestamp(int(data['dt']), tz).strftime("%d %B %Y - %I:%M %p"))
+        msg += "_TZ: {}_\n".format(tz_name.replace("_","__"))
 
         return msg
 
