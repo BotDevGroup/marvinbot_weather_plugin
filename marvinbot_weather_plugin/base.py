@@ -35,7 +35,7 @@ class MarvinBotWeatherPlugin(Plugin):
         self.bot = None
 
     def get_default_config(self):
-        maps = { 
+        maps = {
             'noaa' : {
                 'url' : 'https://cdn.star.nesdis.noaa.gov/GOES16/ABI/SECTOR/',
                 'items' : [
@@ -55,15 +55,15 @@ class MarvinBotWeatherPlugin(Plugin):
             }
         }
         code = {
-            '01d' : '☀',  '01n' : '🌕',        
-            '02d' : '⛅', '02n' : '☁',         
-            '03d' : '☁',  '03n' : '☁',        
-            '04d' : '☁',  '04n' : '☁',        
-            '09d' : '🌧', '09n' : '🌧',        
-            '10d' : '🌧', '10n' : '🌧',        
-            '11d' : '🌩', '11n' : '🌩',        
-            '13d' : '🌨', '13n' : '🌨',        
-            '50d' : '🌫', '50n' : '🌫'        
+            '01d' : '☀',  '01n' : '🌕',
+            '02d' : '⛅', '02n' : '☁',
+            '03d' : '☁',  '03n' : '☁',
+            '04d' : '☁',  '04n' : '☁',
+            '09d' : '🌧', '09n' : '🌧',
+            '10d' : '🌧', '10n' : '🌧',
+            '11d' : '🌩', '11n' : '🌩',
+            '13d' : '🌨', '13n' : '🌨',
+            '50d' : '🌫', '50n' : '🌫'
         }
         return {
             'short_name': self.name,
@@ -97,9 +97,9 @@ class MarvinBotWeatherPlugin(Plugin):
     def http(self, city="", cityid=""):
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36",
-            "Connection": "close"   
+            "Connection": "close"
         }
-        
+
         with requests.Session() as s:
             payload = {}
 
@@ -121,18 +121,18 @@ class MarvinBotWeatherPlugin(Plugin):
 
         url = "https://www.nhc.noaa.gov/index-{}.xml".format("ep" if ep else "at")
         r = requests.get(url, timeout=self.config.get('timeout'));
-        
+
         # strip all namespaces
         tree = ET.iterparse(StringIO(r.text))
         for _, el in tree:
             if '}' in el.tag:
-                el.tag = el.tag.split('}', 1)[1]  
-        
+                el.tag = el.tag.split('}', 1)[1]
+
         root = tree.root
-         
+
         for c in root.iter('Cyclone'):
             hurracane = {}
-        
+
             hurracane['name'] = c.find('name').text
             hurracane['movement'] = c.find('movement').text
             hurracane['pressure'] = c.find('pressure').text
@@ -141,14 +141,14 @@ class MarvinBotWeatherPlugin(Plugin):
             hurracane['datetime'] = c.find('datetime').text
             hurracane['headline'] = c.find('headline').text.strip()
             hurracane['center'] = c.find('center').text
-        
+
             for child in root.iter('item'):
                 if('Graphics' in child.find('title').text and hurracane['name'] in child.find('title').text):
                     html_soup = BeautifulSoup(child.find('description').text, 'html.parser')
                     for img in html_soup.find_all('img'):
                         if '5day' in img['src']: hurracane['img-5day'] = img['src']
                         if 'wind' in img['src']: hurracane['img-wind'] = img['src']
-        
+
             nhc.append(hurracane)
 
         return nhc
@@ -156,10 +156,10 @@ class MarvinBotWeatherPlugin(Plugin):
     def http_nesdis(self, center):
         def nesdisLatLon(url):
             return [float(x) for x in re.split('.*lat=(\d+)\w\&lon=(\d+)\w', url) if x != '']
-        
+
         def nhcLatLon(center):
             return [float(x) for x in re.split('(\d+\.\d+)\,\s\-(\d+\.\d+)', center) if x != '']
-        
+
         def compareLatLon(nhc, nesdis, rang=5):
             return nesdis[0] - rang <= nhc[0] <= nesdis[0] + rang and nesdis[1] - rang <= nhc[1] <= nesdis[1] + rang
 
@@ -168,15 +168,15 @@ class MarvinBotWeatherPlugin(Plugin):
         nhclatlon = nhcLatLon(center)
 
         r = requests.get("{}{}".format(url,'MESO_index.php'), timeout=self.config.get('timeout'))
-        
+
         html_soup = BeautifulSoup(r.text, 'html.parser')
-        
+
         for ul in html_soup.find('div', id='tab1').find_all('ul', class_='mesoItems'):
             for li in ul.find_all('li'):
                 if compareLatLon(nhclatlon, nesdisLatLon(li.a['href'])):
                     r2 = requests.get("{}{}".format(url, li.a['href']), timeout=self.config.get('timeout'))
                     html_soup2 = BeautifulSoup(r2.text, 'html.parser')
-        
+
                     for tb in html_soup2.find_all('div', class_='TNBox'):
                         if 'Band 13' in tb.a['title']:
                             return tb.a['href']
@@ -188,9 +188,9 @@ class MarvinBotWeatherPlugin(Plugin):
 
         url = 'http://www.ssd.noaa.gov/PS/TROP/floaters.html'
         r = requests.get(url, timeout=self.config.get('timeout'))
-        
+
         html_soup = BeautifulSoup(r.text, 'html.parser')
-        
+
         for tbody in html_soup.find_all('table'):
             for a in tbody.find_all('a'):
                 if a.find('strong'):
@@ -199,23 +199,23 @@ class MarvinBotWeatherPlugin(Plugin):
 
                     link = a['href']
                     r2 = requests.get(link)
-        
+
                     html_soup2 =  BeautifulSoup(r2.text, 'html.parser')
-        
+
                     for img in html_soup2.find_all('img'):
                         avn['img'] = '{}{}'.format(url, img['src'])
-        
+
                     ssd.append(avn)
-        
+
         return ssd
 
     def http_stormcaribe(self, name):
         url = 'https://stormcarib.com/'
 
         r = requests.get(url, timeout=self.config.get('timeout'))
-        
+
         html_soup = BeautifulSoup(r.text, 'html.parser')
-        
+
         for tr in html_soup.find_all('tr'):
             if "tools" in tr.td.text and name.lower() in tr.td.text.lower():
                 for a in tr.find_all('a', title='[Spaghetti plots + intensity]'):
@@ -226,7 +226,7 @@ class MarvinBotWeatherPlugin(Plugin):
         return ""
 
     def http_image(self, url):
-        try: 
+        try:
             if url:
                 image = requests.get(url, stream=True, timeout=self.config.get('timeout'))
                 if image.status_code == 200:
@@ -250,15 +250,16 @@ class MarvinBotWeatherPlugin(Plugin):
         tz = pytz.timezone(timezone.getTimezone(data['sys']['country']))
 
         msg =  "*{} {}*\n\n".format(flag.getFlag(data['sys']['country']), data['name'])
-        
+
         for temp in data['weather']:
             msg += "{} {}\n".format(self.config.get('code').get(temp['icon']), temp['description'])
 
         msg += "\n"
-        msg += "*Temp*: {} {}\n".format(data['main']['temp'], temp_chart.get(self.config.get('units'), "standard"))
+        msg += "*Temp*: {} {}\n".format(round(float(data['main']['temp'])), temp_chart.get(self.config.get('units'), "standard"))
         msg += "*Sunrise*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunrise']), tz).strftime("%I:%M %p"))
         msg += "*Sunset*: {}\n\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
         msg += "*Date*: {}".format(datetime.fromtimestamp(int(data['dt']), tz).strftime("%d %B %Y - %I:%M %p"))
+        msg += "\nTZ: {}\nCountry: {}".format(timezone.getTimezone(data['sys']['country']), data['sys']['country'])
 
         return msg
 
@@ -301,7 +302,7 @@ class MarvinBotWeatherPlugin(Plugin):
 
                 cities = city.getCity(name)
                 options = []
-                
+
                 options = chunks([InlineKeyboardButton(text='{} {}'.format(flag.getFlag(c['country']), c['name']), callback_data="weather:{}".format(c['id'])) for c in cities], 3)
 
                 if len(options) > 0:
@@ -372,7 +373,7 @@ class MarvinBotWeatherPlugin(Plugin):
             msg = self.make_msg(self.http(cityid=data[1]))
         except Exception as err:
             log.exception("on_button")
-        
+
         if msg:
             self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown', disable_web_page_preview = True)
 
@@ -440,7 +441,7 @@ class MarvinBotWeatherPlugin(Plugin):
                     nesdis = self.http_image(self.http_nesdis(hurricane['center']))
                     stormcarib = self.http_image(self.http_stormcaribe(hurricane['name']))
 
-                    last_message = self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg_nhc, parse_mode='Markdown')  
+                    last_message = self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg_nhc, parse_mode='Markdown')
                     if fiveday: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=fiveday.raw)
                     if avn: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=avn.raw)
                     if nesdis: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=nesdis.raw)
@@ -453,4 +454,3 @@ class MarvinBotWeatherPlugin(Plugin):
                 self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
         except Exception as err:
             log.exception("on_nhc")
-
