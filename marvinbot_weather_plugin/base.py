@@ -20,7 +20,6 @@ import ctypes
 import time
 import xml.etree.ElementTree as ET
 import pytz
-from tzwhere import tzwhere
 from timezonefinder import TimezoneFinder
 from datetime import datetime
 
