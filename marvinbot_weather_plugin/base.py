@@ -2,7 +2,6 @@
 
 import marvinbot_weather_plugin.city as city
 import marvinbot_weather_plugin.flag as flag
-import marvinbot_weather_plugin.timezone as timezone
 
 from marvinbot.utils import localized_date, get_message
 from marvinbot.handlers import CommandHandler, CallbackQueryHandler
