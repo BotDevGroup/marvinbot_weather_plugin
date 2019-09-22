@@ -256,7 +256,11 @@ class MarvinBotWeatherPlugin(Plugin):
             msg += "{} {}\n".format(self.config.get('code').get(temp['icon']), temp['description'])
 
         msg += "\n"
-        msg += "*Temp*: {} {}\n".format(round(float(data['main']['temp'])), temp_chart.get(self.config.get('units'), "standard"))
+        msg += "*Temp*: {} {} - ⬇ {} {} - ⬆ {} {}\n".format(
+            round(float(data['main']['temp'])), temp_chart.get(self.config.get('units'), "standard"),
+            round(float(data['main']['temp_min'])), temp_chart.get(self.config.get('units'), "standard"),
+            round(float(data['main']['temp_max'])), temp_chart.get(self.config.get('units'), "standard")
+            )
         msg += "*Sunrise*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunrise']), tz).strftime("%I:%M %p"))
         msg += "*Sunset*: {}\n".format(datetime.fromtimestamp(int(data['sys']['sunset']), tz).strftime("%I:%M %p"))
         msg += "*Date*: {}\n".format(datetime.fromtimestamp(int(data['dt']), tz).strftime("%d %B %Y - %I:%M %p"))
