@@ -22,6 +22,7 @@ import xml.etree.ElementTree as ET
 import pytz
 from timezonefinder import TimezoneFinder
 from datetime import datetime
+import uuid
 
 log = logging.getLogger(__name__)
 
@@ -224,18 +225,6 @@ class MarvinBotWeatherPlugin(Plugin):
 
         return ""
 
-    def http_image(self, url):
-        try:
-            if url:
-                image = requests.get(url, stream=True, timeout=self.config.get('timeout'))
-                if image.status_code == 200:
-                    image.raw.decode_content = True
-                    return image
-        except Exception as err:
-            log.exception("Weather http_image url: {}".format(url))
-
-        return ""
-
     def make_msg(self, data):
         temp_chart = {
             'metric': '°C',
@@ -344,10 +333,8 @@ class MarvinBotWeatherPlugin(Plugin):
                 callback = "nhc:{}".format(hurricane['name'])
                 options.append([InlineKeyboardButton(text=hurricane['name'], callback_data=callback)])
 
-            url = "https://www.nhc.noaa.gov/xgtwo/two_{}_0d0.png".format("pac" if ep else "atl")
-            map = self.http_image(url)
-            if map:
-                self.adapter.bot.sendPhoto(chat_id=message.chat_id, photo=map.raw)
+            url = "https://www.nhc.noaa.gov/xgtwo/two_{}_0d0.png?{}".format("pac" if ep else "atl", self.random())
+            self.adapter.bot.sendPhoto(chat_id=message.chat_id, photo=url)
 
             if len(options) > 0:
                 reply_markup = InlineKeyboardMarkup(options)
@@ -392,17 +379,8 @@ class MarvinBotWeatherPlugin(Plugin):
         except:
             query.message.edit_reply_markup(reply_markup=None)
 
-        try:
-            url = "{}{}".format(self.config.get('maps').get(data[2]).get('url'), data[1])
-            m = self.http_image(url)
-            if m:
-                self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=m.raw)
-            else:
-                msg = "❌ Download error"
-        except requests.exceptions.Timeout as err:
-            log.exception("on_map")
-        except Exception as err:
-            log.exception("on_map")
+        url = "{}{}?{}".format(self.config.get('maps').get(data[2]).get('url'), data[1], self.random())
+        self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=url)
 
         if msg:
             self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
@@ -437,20 +415,20 @@ class MarvinBotWeatherPlugin(Plugin):
                     msg_nhc = self.make_msg_nhc(hurricane)
 
                     if 'img-5day' in hurricane:
-                        fiveday = self.http_image(hurricane['img-5day'])
+                        fiveday = "{}?{}".format(hurricane['img-5day'], self.random())
 
                     ssd = next((ssd for ssd in self.http_ssd() if ssd['name'] == hurricane['name']), None)
                     if ssd:
-                        avn = self.http_image(ssd['img'])
+                        avn = "{}?{}".format(ssd['img'], self.random())
 
-                    nesdis = self.http_image(self.http_nesdis(hurricane['center']))
-                    stormcarib = self.http_image(self.http_stormcaribe(hurricane['name']))
+                    nesdis = self.http_nesdis(hurricane['center'])
+                    stormcarib = self.http_stormcaribe(hurricane['name'])
 
                     last_message = self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg_nhc, parse_mode='Markdown')
-                    if fiveday: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=fiveday.raw)
-                    if avn: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=avn.raw)
-                    if nesdis: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=nesdis.raw)
-                    if stormcarib: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=stormcarib.raw)
+                    if fiveday: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=fiveday)
+                    if avn: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo=avn)
+                    if nesdis: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo="{}?{}".format(nesdis, self.random()))
+                    if stormcarib: self.adapter.bot.sendPhoto(chat_id=query.message.chat_id, photo="{}?{}".format(stormcarib, self.random()))
                     if old_message:
                         last.remove(old_message)
                     last.append({'date': time.time(), 'chat_id': query.message.chat_id, 'message_id': last_message.message_id, 'hurricane': data[1]})
@@ -459,3 +437,7 @@ class MarvinBotWeatherPlugin(Plugin):
                 self.adapter.bot.sendMessage(chat_id=query.message.chat_id, text=msg, parse_mode='Markdown')
         except Exception as err:
             log.exception("on_nhc")
+
+    def random(self):
+        id = uuid.uuid1()
+        return id.hex
